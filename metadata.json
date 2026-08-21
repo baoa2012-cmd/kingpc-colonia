@@ -1,0 +1,7 @@
+{
+  "name": "Neutrón Apex - King PC Colonia",
+  "description": "Asistente inteligente de gestión de taller, facturación, estudio de stickers, llamadas y voz ejecutiva con Gemini TTS para KING PC COLONIA.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

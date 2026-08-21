@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #050a24;
+    color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+}
+
+/* King PC Custom Theme Utilities */
+.bg-king-navy-950 { background-color: #04081c; }
+.bg-king-navy-900 { background-color: #060d2a; }
+.bg-king-navy-800 { background-color: #0a1442; }
+.bg-king-navy-700 { background-color: #0f1f63; }
+.border-king-navy { border-color: #1a2f7d; }
+.border-king-gold { border-color: #f6c90e; }
+.text-king-gold { color: #f6c90e; }
+.bg-king-gold { background-color: #f6c90e; }
+.bg-king-royal { background-color: #0026e6; }
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(246, 201, 14, 0.25), 0 0 30px rgba(0, 38, 230, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(246, 201, 14, 0.5), 0 0 50px rgba(0, 38, 230, 0.6);
+  }
+}
+
+.animate-king-glow {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+
+  /* Hide app chrome, navigation, headers, and buttons */
+  header, nav, button, [class*="print:hidden"], #print-controls {
+    display: none !important;
+  }
+
+  /* Force printable receipts to take full thermal width */
+  #thermal-receipt, #invoice-receipt {
+    display: block !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 4px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: monospace !important;
+  }
+}
+
