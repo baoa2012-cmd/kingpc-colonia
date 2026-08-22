@@ -1,3 +1,4 @@
+import { getDbPool, saveRepairTicketToDb, loadAllTicketsFromDb, loadAllCustomersFromDb, syncCustomerAndWebUser } from './src/db.js';
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -515,6 +516,22 @@ function extraerDatosDirectos(texto: string) {
 }
 
 async function startServer() {
+  // Initialize MySQL pool & load historical data
+  try {
+    const dbTickets = await loadAllTicketsFromDb();
+    if (dbTickets && dbTickets.length > 0) {
+      store.reparaciones = dbTickets;
+      console.log(`[DB] Loaded ${dbTickets.length} historical tickets into Neutrón memory`);
+    }
+    const dbClientes = await loadAllCustomersFromDb();
+    if (dbClientes && dbClientes.length > 0) {
+      store.clientes = dbClientes;
+      console.log(`[DB] Loaded ${dbClientes.length} clients into Neutrón memory`);
+    }
+  } catch (dbErr) {
+    console.warn('[DB] Could not pre-load MySQL data, running with default memory:', dbErr.message);
+  }
+
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3002;
 
@@ -1086,6 +1103,8 @@ INSTRUCCIONES CLAVE:
                   store.reparaciones[idx] = { ...targetTicket };
                 }
                 store.ticketEnFoco = targetTicket;
+                // Update in MySQL tables
+                saveRepairTicketToDb(targetTicket).catch(e => console.error('[DB] update error:', e.message));
 
                 return res.json({
                   success: true,
@@ -1135,6 +1154,9 @@ INSTRUCCIONES CLAVE:
               };
 
               store.reparaciones.unshift(nuevoTicket);
+    saveRepairTicketToDb(nuevoTicket).catch(e => console.error('[DB] save error:', e.message));
+            // Save to MySQL tables: tavl_reparaciones, tavl_clientes, tavl_usuarios
+            saveRepairTicketToDb(nuevoTicket).catch(e => console.error('[DB] save error:', e.message));
               store.ticketEnFoco = nuevoTicket;
 
               // Auto-register or link client in 15e Colony database
@@ -1334,6 +1356,7 @@ INSTRUCCIONES CLAVE:
         };
 
         store.reparaciones.unshift(nuevoTicket);
+    saveRepairTicketToDb(nuevoTicket).catch(e => console.error('[DB] save error:', e.message));
         store.ticketEnFoco = nuevoTicket;
 
         // Sync with clientes
@@ -1563,6 +1586,7 @@ INSTRUCCIONES CLAVE:
     };
 
     store.reparaciones.unshift(nuevoTicket);
+    saveRepairTicketToDb(nuevoTicket).catch(e => console.error('[DB] save error:', e.message));
     store.ticketEnFoco = nuevoTicket;
 
     res.json({ success: true, message: `Servicio ${ticket_num} ingresado al sistema.`, ticket: nuevoTicket });
