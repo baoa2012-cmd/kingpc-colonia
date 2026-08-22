@@ -104,6 +104,10 @@ export const ThermalTicket: React.FC<ThermalTicketProps> = ({
   };
 
   const handlePrint = (mode: TicketPrintMode = printMode) => {
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     const modeLabel =
       mode === "double"
         ? "Doble Ticket (Cliente + Taller)"
@@ -111,7 +115,15 @@ export const ThermalTicket: React.FC<ThermalTicketProps> = ({
         ? "Ticket Cliente"
         : "Ticket Taller (Equipo)";
 
-    setPrintStatus(`Enviando a impresora térmica: ${modeLabel}...`);
+    // On mobile devices, automatically send to the workshop desktop AON printer
+    if (isMobile) {
+      handlePrintOnWorkshopDesktop();
+      setPrintStatus(`¡Orden enviada a tu Impresora AON del Taller (${modeLabel})! Tu PC la está imprimiendo.`);
+      setTimeout(() => setPrintStatus(null), 5000);
+      return;
+    }
+
+    setPrintStatus(`Enviando a impresora térmica AON: ${modeLabel}...`);
     const html = getHtmlForCurrentMode(mode);
     const success = printHtmlViaIframe(html);
 
