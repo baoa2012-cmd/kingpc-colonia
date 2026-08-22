@@ -32,7 +32,7 @@ import { ExecutiveTerminal } from "./components/ExecutiveTerminal";
 import { TicketEditorModal } from "./components/TicketEditorModal";
 import { KingPcLogo } from "./components/KingPcLogo";
 import { Ticket, Factura, Contacto, Cliente, InventarioItem, VoiceCommandResponse } from "./types";
-import { speakText, stopCurrentAudio } from "./utils/audio";
+import { speakText, stopCurrentAudio, unlockAudio, getAllSpanishVoices } from "./utils/audio";
 
 interface ChatMessage {
   id: string;
@@ -85,6 +85,7 @@ export default function App() {
   );
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [voiceName, setVoiceName] = useState<string>("browser-male");
+  const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -92,10 +93,20 @@ export default function App() {
 
   const recognitionRef = useRef<any>(null);
 
-  // Initial Data Fetch
+  // Initial Data Fetch & Voice loader
   useEffect(() => {
     fetchInitialData();
     setupSpeechRecognition();
+    getAllSpanishVoices().then((v) => {
+      if (v && v.length > 0) setSystemVoices(v);
+    });
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        getAllSpanishVoices().then((v) => {
+          if (v && v.length > 0) setSystemVoices(v);
+        });
+      };
+    }
   }, []);
 
   const fetchInitialData = async () => {
@@ -311,6 +322,7 @@ export default function App() {
 
       // Activate conversation mode
       conversationModeRef.current = true;
+      unlockAudio();
       stopCurrentAudio();
       setTranscript("");
       transcriptRef.current = "";
@@ -337,6 +349,7 @@ export default function App() {
 
   const executeCommand = async (textToRun: string) => {
     if (!textToRun.trim()) return;
+    unlockAudio();
 
     const userMessage: ChatMessage = {
       id: "usr-" + Date.now(),
@@ -621,18 +634,29 @@ export default function App() {
             <span className="text-slate-400 font-medium">Voz:</span>
             <select
               value={voiceName}
-              onChange={(e) => setVoiceName(e.target.value)}
-              className="bg-transparent text-[#f6c90e] font-bold focus:outline-none cursor-pointer text-xs"
+              onChange={(e) => {
+                setVoiceName(e.target.value);
+                unlockAudio();
+              }}
+              className="bg-transparent text-[#f6c90e] font-bold focus:outline-none cursor-pointer text-xs max-w-[150px] truncate"
             >
-              <option value="browser-male" className="bg-[#060e2e] text-white">Voz Navegador</option>
+              <option value="browser-male" className="bg-[#060e2e] text-white">Voz Neutrón (Auto)</option>
+              {systemVoices.map((v) => (
+                <option key={v.name} value={v.name} className="bg-[#060e2e] text-white">
+                  {v.name.replace(/Microsoft|Google/gi, "").trim()}
+                </option>
+              ))}
               <option value="Fenrir" className="bg-[#060e2e] text-white">Fenrir (Gemini)</option>
               <option value="Zephyr" className="bg-[#060e2e] text-white">Zephyr (Gemini)</option>
               <option value="Puck" className="bg-[#060e2e] text-white">Puck (Gemini)</option>
             </select>
             <button
               id="btn-test-voice"
-              onClick={() => speakText("Hola señor, la voz de Neutrón está activa y lista para operar en King PC.", voiceName)}
-              className="ml-1 px-2 py-0.5 bg-[#0026e6] hover:bg-[#003be6] text-white text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1 shadow"
+              onClick={() => {
+                unlockAudio();
+                speakText("Hola señor, la voz de Neutrón está activa y lista para operar en King PC.", voiceName);
+              }}
+              className="ml-1 px-2 py-0.5 bg-[#0026e6] hover:bg-[#003be6] text-white text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1 shadow active:scale-95"
               title="Probar audio de Neutrón"
             >
               <Volume2 className="w-3.5 h-3.5" />

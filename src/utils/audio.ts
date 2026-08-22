@@ -1,14 +1,23 @@
-// Audio utility for Web Speech API & Gemini TTS
-// Prioritizes masculine / male voices from the browser with robust multi-browser fallbacks
+// Audio utility for Web Speech API & Gemini TTS with Chromium SpeechSynthesis resilience
+// King PC Colonia - Neutrón Voice Engine
 
 let activeAudioCtx: AudioContext | null = null;
 let activeSourceNode: AudioBufferSourceNode | null = null;
 let keepAliveInterval: any = null;
+let cachedVoices: SpeechSynthesisVoice[] = [];
 
-// Retain utterance in global window to prevent Chrome V8 garbage collection during speech
 declare global {
   interface Window {
     __activeUtterance?: SpeechSynthesisUtterance | null;
+  }
+}
+
+// Unlock audio on user interaction
+export function unlockAudio() {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
   }
 }
 
@@ -27,6 +36,9 @@ export function stopCurrentAudio() {
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     try {
       window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
     } catch (e) {}
   }
   if (typeof window !== "undefined") {
@@ -54,7 +66,6 @@ export async function playPcmAudioBase64(base64Pcm: string, sampleRate = 24000):
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Convert 16-bit signed integer buffer to float [-1.0, 1.0]
     const int16Array = new Int16Array(bytes.buffer);
     const float32Array = new Float32Array(int16Array.length);
     for (let i = 0; i < int16Array.length; i++) {
@@ -89,46 +100,62 @@ export function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
       return;
     }
 
-    let voices = window.speechSynthesis.getVoices();
+    const voices = window.speechSynthesis.getVoices();
     if (voices && voices.length > 0) {
+      cachedVoices = voices;
       resolve(voices);
       return;
     }
 
-    // Wait for voices to load
     let resolved = false;
     const handleVoicesChanged = () => {
       if (resolved) return;
       resolved = true;
-      voices = window.speechSynthesis.getVoices();
+      const v = window.speechSynthesis.getVoices();
+      cachedVoices = v || [];
       window.speechSynthesis.onvoiceschanged = null;
-      resolve(voices || []);
+      resolve(cachedVoices);
     };
 
     window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
 
-    // Timeout fallback if onvoiceschanged doesn't fire within 500ms
     setTimeout(() => {
       if (resolved) return;
       resolved = true;
-      voices = window.speechSynthesis.getVoices();
-      resolve(voices || []);
-    }, 500);
+      const v = window.speechSynthesis.getVoices();
+      cachedVoices = v || [];
+      resolve(cachedVoices);
+    }, 400);
+  });
+}
+
+// Returns all Spanish voices found in the browser
+export async function getAllSpanishVoices(): Promise<SpeechSynthesisVoice[]> {
+  const voices = await getAvailableVoices();
+  return voices.filter((v) => {
+    const lang = (v.lang || "").toLowerCase();
+    return lang.startsWith("es") || lang.includes("es-") || lang.includes("es_") || lang.includes("spa");
   });
 }
 
 // Selects the best voice: Preferred masculine Spanish -> Any Spanish -> System default
-export async function getBestSpanishVoice(): Promise<{ voice: SpeechSynthesisVoice | null; lang: string }> {
+export async function getBestSpanishVoice(preferredName?: string): Promise<{ voice: SpeechSynthesisVoice | null; lang: string }> {
   const voices = await getAvailableVoices();
   if (!voices || voices.length === 0) {
     return { voice: null, lang: "es-ES" };
   }
 
+  // If specific voice requested by name
+  if (preferredName && preferredName !== "browser-male" && preferredName !== "default") {
+    const match = voices.find((v) => v.name.toLowerCase().includes(preferredName.toLowerCase()));
+    if (match) return { voice: match, lang: match.lang || "es-ES" };
+  }
+
   // 1. Male Spanish Voice
   const maleKeywords = [
-    "male", "hombre", "jorge", "diego", "raul", "alvaro", "enrique", 
-    "miguel", "carlos", "pablo", "microsoft alvaro", "microsoft jorge", 
-    "microsoft raul", "google español", "antonio", "tomas", "gonzalo"
+    "raul", "alvaro", "jorge", "diego", "enrique", "miguel", 
+    "carlos", "pablo", "microsoft alvaro", "microsoft jorge", 
+    "microsoft raul", "google español", "antonio", "tomas", "gonzalo", "male", "hombre"
   ];
 
   const maleSpanish = voices.find((v) => {
@@ -158,7 +185,7 @@ export async function getBestSpanishVoice(): Promise<{ voice: SpeechSynthesisVoi
 }
 
 // Web Speech API execution with Chrome-bug resilience & resume loop
-export async function speakWebSpeech(text: string, voiceRate = 1.0): Promise<void> {
+export async function speakWebSpeech(text: string, preferredVoiceName?: string, voiceRate = 1.0): Promise<void> {
   if (!text || typeof window === "undefined" || !("speechSynthesis" in window)) {
     return;
   }
@@ -171,20 +198,21 @@ export async function speakWebSpeech(text: string, voiceRate = 1.0): Promise<voi
 
   if (!clean) return;
 
-  // Stop previous audio
+  // Stop previous audio & ensure audio is unpaused
   stopCurrentAudio();
+  unlockAudio();
 
-  // Give Chrome a short 60ms breath after cancel to prevent dropping utterance
-  await new Promise((r) => setTimeout(r, 60));
+  // Give Chrome a short 50ms pause after cancel to prevent dropping utterance
+  await new Promise((r) => setTimeout(r, 50));
 
-  const { voice, lang } = await getBestSpanishVoice();
+  const { voice, lang } = await getBestSpanishVoice(preferredVoiceName);
 
   return new Promise((resolve) => {
     try {
       const utter = new SpeechSynthesisUtterance(clean);
       utter.rate = voiceRate;
       utter.pitch = 0.95; // Confident male tone
-      utter.lang = lang;
+      utter.lang = lang || "es-ES";
 
       if (voice) {
         utter.voice = voice;
@@ -204,7 +232,7 @@ export async function speakWebSpeech(text: string, voiceRate = 1.0): Promise<voi
 
       utter.onend = cleanup;
       utter.onerror = (e) => {
-        console.warn("SpeechSynthesis error:", e);
+        console.warn("SpeechSynthesis utterance error:", e);
         cleanup();
       };
 
@@ -214,14 +242,21 @@ export async function speakWebSpeech(text: string, voiceRate = 1.0): Promise<voi
           window.speechSynthesis.pause();
           window.speechSynthesis.resume();
         }
-      }, 5000);
+      }, 4000);
 
-      // Resume if paused
+      // Force resume right before speaking
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
       window.speechSynthesis.speak(utter);
+
+      // Extra watchdog in case Chrome doesn't start speaking within 200ms
+      setTimeout(() => {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      }, 150);
     } catch (err) {
       console.warn("Error invoking speechSynthesis.speak:", err);
       resolve();
@@ -233,12 +268,15 @@ export async function speakWebSpeech(text: string, voiceRate = 1.0): Promise<voi
 export async function speakText(text: string, voiceEngine: string = "browser-male"): Promise<void> {
   if (!text) return;
 
-  if (voiceEngine === "browser-male" || voiceEngine === "Navegador Masculina" || !voiceEngine) {
-    await speakWebSpeech(text);
+  unlockAudio();
+
+  // If a browser voice or default is selected
+  if (voiceEngine === "browser-male" || voiceEngine === "Navegador Masculina" || !voiceEngine || voiceEngine.startsWith("Microsoft") || voiceEngine.startsWith("Google")) {
+    await speakWebSpeech(text, voiceEngine);
     return;
   }
 
-  // If Gemini TTS is chosen
+  // If Gemini cloud voice was chosen
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
