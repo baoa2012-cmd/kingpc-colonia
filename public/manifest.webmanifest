@@ -1,0 +1,25 @@
+{
+  "name": "Neutrón • KING PC COLONIA",
+  "short_name": "Neutrón",
+  "description": "Asistente IA para Taller y Reparaciones de KING PC Colonia",
+  "start_url": "/neutron/",
+  "scope": "/neutron/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/neutron/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/neutron/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

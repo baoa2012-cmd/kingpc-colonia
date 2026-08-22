@@ -757,6 +757,44 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
 
       const ai = getGemini();
 
+      // Check if user is requesting to PRINT ticket / service order
+      const isPrintIntent =
+        norm.includes("imprim") ||
+        norm.includes("impresion") ||
+        norm.includes("imprimir");
+
+      if (isPrintIntent) {
+        let targetTicket = store.ticketEnFoco || store.reparaciones[0];
+        const numMatches = norm.match(/\b\d{3,6}\b/g);
+        if (numMatches && numMatches.length > 0) {
+          const numStr = numMatches[0];
+          const cleanNum = numStr.replace(/^0+/, "") || numStr;
+          const found = store.reparaciones.find((r) => {
+            const rClean = r.ticket_num.replace(/\D/g, "");
+            const rCleanNoZeros = rClean.replace(/^0+/, "") || rClean;
+            return rClean.endsWith(numStr) || rCleanNoZeros === cleanNum || rClean.includes(numStr);
+          });
+          if (found) {
+            targetTicket = found;
+            store.ticketEnFoco = found;
+          }
+        }
+
+        let printMode: "double" | "cliente" | "taller" = "double";
+        if (norm.includes("cliente")) printMode = "cliente";
+        else if (norm.includes("taller") || norm.includes("laboratorio") || norm.includes("local")) printMode = "taller";
+
+        return res.json({
+          success: true,
+          intent: "imprimir_ticket",
+          action: "imprimir_ticket",
+          printMode,
+          speak: "Entendido, señor.",
+          ticket: targetTicket,
+          memoria: store.memoria,
+        });
+      }
+
       // 1. CHECK IF USER ASKS TO ISSUE INVOICE / SALES TICKET OR SELL AN ITEM
       const isInvoiceOrSaleIntent =
         norm.includes("factura") ||

@@ -33,6 +33,13 @@ import { TicketEditorModal } from "./components/TicketEditorModal";
 import { KingPcLogo } from "./components/KingPcLogo";
 import { Ticket, Factura, Contacto, Cliente, InventarioItem, VoiceCommandResponse } from "./types";
 import { speakText, stopCurrentAudio, unlockAudio, getAllSpanishVoices } from "./utils/audio";
+import {
+  generateDoubleThermalReceiptHtml,
+  generateClientOnlyThermalReceiptHtml,
+  generateWorkshopOnlyThermalReceiptHtml,
+  printHtmlViaIframe,
+} from "./utils/printReceipt";
+import { Smartphone, Download } from "lucide-react";
 
 interface ChatMessage {
   id: string;
@@ -87,13 +94,18 @@ export default function App() {
   const [voiceName, setVoiceName] = useState<string>("browser-male");
   const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
 
+  // PWA Mobile App Installation State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
 
   const recognitionRef = useRef<any>(null);
 
-  // Initial Data Fetch & Voice loader
+  // Initial Data Fetch & Voice loader & PWA installation hook
   useEffect(() => {
     fetchInitialData(true);
     setupSpeechRecognition();
@@ -107,7 +119,37 @@ export default function App() {
         });
       };
     }
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+
+    if (typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone)) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsInstallable(false);
+        setDeferredPrompt(null);
+        setIsInstalled(true);
+      }
+    } else {
+      alert("📱 Para instalar Neutrón en tu teléfono:\n\n1. En Chrome (Android): Toca los 3 puntos (⋮) arriba a la derecha y selecciona 'Instalar aplicación' o 'Agregar a pantalla principal'.\n2. En Safari (iPhone): Toca el botón Compartir (el cuadrado con la flecha hacia arriba) y elige 'Agregar al inicio'.\n\n¡Tendrás a Neutrón como una App nativa en tu pantalla!");
+    }
+  };
 
   const fetchInitialData = async (isInitialMount = false) => {
     try {
@@ -380,6 +422,21 @@ export default function App() {
           setActiveTicket(data.ticket);
           setTickets((prev) => [data.ticket!, ...prev.filter((t) => t.ticket_num !== data.ticket!.ticket_num)]);
           setActiveTab("asistente");
+
+          // Auto-print ticket if voice command requested printing
+          if (data.intent === "imprimir_ticket" || (data as any).action === "imprimir_ticket") {
+            const mode = (data as any).printMode || "double";
+            const html =
+              mode === "cliente"
+                ? generateClientOnlyThermalReceiptHtml(data.ticket, true)
+                : mode === "taller"
+                ? generateWorkshopOnlyThermalReceiptHtml(data.ticket, true)
+                : generateDoubleThermalReceiptHtml(data.ticket, true);
+
+            setTimeout(() => {
+              printHtmlViaIframe(html);
+            }, 350);
+          }
         }
 
         if (data.factura) {
@@ -393,7 +450,7 @@ export default function App() {
           setActiveTab("terminal");
         }
 
-        fetchInitialData();
+        fetchInitialData(false);
 
         if (data.speak) {
           setLastResponseText(data.speak);
@@ -662,6 +719,19 @@ export default function App() {
               <Volume2 className="w-3.5 h-3.5" />
               <span>Probar</span>
             </button>
+
+            {/* Install Mobile PWA App Button */}
+            {!isInstalled && (
+              <button
+                id="btn-install-app"
+                onClick={handleInstallApp}
+                className="ml-1 px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-[11px] font-black rounded-lg transition cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-900/30 active:scale-95 border border-emerald-400/40"
+                title="Instalar Neutrón como App en tu teléfono o PC"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-200" />
+                <span>📲 Instalar App</span>
+              </button>
+            )}
           </div>
         </div>
       </nav>
