@@ -871,39 +871,51 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
         norm.includes("a nombre de") ||
         norm.includes("para reparar");
 
-      // Only search tickets if explicitly asked and NOT creating a new ticket
-      const digitsMatch = norm.match(/\b(?:0?(\d{3,6}))\b/);
-      const isExplicitSearch =
+      // Robust Ticket Search & Locate Intent
+      const isSearchTicketIntent =
         !isCreateTicketIntent &&
         (norm.includes("ubica") ||
          norm.includes("localiza") ||
-         norm.startsWith("busca") ||
-         norm.includes("buscar ticket") ||
-         norm.includes("mostrar ticket") ||
+         norm.includes("busca") ||
+         norm.includes("buscar") ||
+         norm.includes("mostrar") ||
+         norm.includes("muestrame") ||
          norm.includes("ver ticket") ||
-         norm.includes("donde esta"));
+         norm.includes("donde esta") ||
+         norm.includes("ticket num") ||
+         norm.includes("orden num") ||
+         norm.match(/\b(st|rep)[-\s]?\d{3,6}\b/i) !== null);
 
-      if (isExplicitSearch) {
-        let foundTicket = null;
+      if (isSearchTicketIntent) {
+        try {
+          const fresh = await loadAllTicketsFromDb();
+          if (fresh && fresh.length > 0) store.reparaciones = fresh;
+        } catch {}
 
-        if (digitsMatch && digitsMatch[1]) {
-          const numDigits = digitsMatch[1];
-          foundTicket = store.reparaciones.find((r) => {
-            const cleanNum = r.ticket_num.replace(/\D/g, "");
-            return cleanNum.endsWith(numDigits) || cleanNum.includes(numDigits);
-          });
+        let foundTicket: any = null;
+        const numberMatches = norm.match(/\b\d{3,6}\b/g);
+
+        if (numberMatches && numberMatches.length > 0) {
+          for (const numStr of numberMatches) {
+            const cleanNum = numStr.replace(/^0+/, "") || numStr;
+            foundTicket = store.reparaciones.find((r) => {
+              const rClean = r.ticket_num.replace(/\D/g, "");
+              const rCleanNoZeros = rClean.replace(/^0+/, "") || rClean;
+              return rClean.endsWith(numStr) || rCleanNoZeros === cleanNum || rClean.includes(numStr);
+            });
+            if (foundTicket) break;
+          }
         }
 
-        if (!foundTicket && (norm.includes("0403") || norm.includes("403") || norm.includes("mauro"))) {
-          foundTicket = store.reparaciones.find((r) => r.ticket_num.includes("000403") || r.cliente_nombre.toLowerCase().includes("mauro"));
-        }
-
-        if (!foundTicket && (norm.includes("0406") || norm.includes("406") || norm.includes("julio"))) {
-          foundTicket = store.reparaciones.find((r) => r.ticket_num.includes("000406") || r.cliente_nombre.toLowerCase().includes("julio"));
-        }
-
-        if (!foundTicket && norm.includes("raul")) {
-          foundTicket = store.reparaciones.find((r) => r.cliente_nombre.toLowerCase().includes("raul")) || store.reparaciones[0];
+        // Search by client name or device if no number match
+        if (!foundTicket) {
+          const clientWords = norm.replace(/(ubica|ubicar|busca|buscar|localiza|localizar|muestrame|mostrar|el|la|ticket|orden|servicio|por favor|de|del|senor|don)/g, "").trim();
+          if (clientWords.length >= 3) {
+            foundTicket = store.reparaciones.find((r) =>
+              r.cliente_nombre.toLowerCase().includes(clientWords) ||
+              (r.dispositivo && r.dispositivo.toLowerCase().includes(clientWords))
+            );
+          }
         }
 
         if (foundTicket) {
@@ -913,6 +925,16 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
             intent: "buscar_ticket",
             speak: "Entendido.",
             ticket: foundTicket,
+            tickets: store.reparaciones,
+            memoria: store.memoria,
+          });
+        } else {
+          const searchRef = numberMatches ? numberMatches[0] : "solicitado";
+          return res.json({
+            success: true,
+            intent: "buscar_ticket",
+            speak: `Señor, ese ticket ${searchRef} no se encuentra en la base de datos o ha sido eliminado.`,
+            ticket: null,
             memoria: store.memoria,
           });
         }

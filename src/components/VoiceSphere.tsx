@@ -130,15 +130,27 @@ export const VoiceSphere: React.FC<VoiceSphereProps> = ({
       )}
 
       {/* Live transcript bubble */}
-      {transcript && (
+      {(isListening || transcript) && (
         <div className="w-full max-w-md text-center mt-2 z-20">
-          <div className="w-full text-left bg-emerald-950/80 p-3 rounded-2xl border border-emerald-500/40 shadow-xl backdrop-blur-md">
+          <div className="w-full text-left bg-emerald-950/90 p-3 rounded-2xl border border-emerald-500/50 shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400 mb-1">
-              <span>🎙️ Neutrón te escucha:</span>
-              <span className="text-[10px] text-emerald-300/80">Pausa para procesar</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                🎙️ Neutrón te escucha en vivo:
+              </span>
+              <span className="text-[10px] text-emerald-300/80">Pausa al hablar para procesar</span>
             </div>
-            <p className="text-xs text-white font-medium leading-relaxed">
-              "{transcript}"<span className="inline-block w-1.5 h-3.5 bg-emerald-400 ml-1 animate-pulse" />
+            <p className="text-xs text-white font-medium leading-relaxed min-h-[20px]">
+              {transcript ? (
+                <>
+                  "{transcript}"
+                  <span className="inline-block w-1.5 h-3.5 bg-emerald-400 ml-1 animate-pulse" />
+                </>
+              ) : (
+                <span className="text-emerald-300/60 italic">
+                  Habla ahora... (ej: "Ubícame el ticket 0433", "Crea una orden para Fernando...")
+                </span>
+              )}
             </p>
           </div>
         </div>
