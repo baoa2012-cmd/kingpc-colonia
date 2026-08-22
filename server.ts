@@ -520,6 +520,14 @@ async function startServer() {
 
   app.use(express.json({ limit: "20mb" }));
 
+  // Normalize /neutron prefix if present
+  app.use((req, res, next) => {
+    if (req.url.startsWith("/neutron/")) {
+      req.url = req.url.replace(/^\/neutron/, "") || "/";
+    }
+    next();
+  });
+
   // --- HEALTH & STATUS ---
   app.get("/api/health", (req, res) => {
     res.json({
