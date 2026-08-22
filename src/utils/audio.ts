@@ -1,4 +1,4 @@
-// Audio utility for Web Speech API & Gemini TTS with Chromium SpeechSynthesis resilience
+// Audio utility for Web Speech API & Gemini TTS with Chromium & Android SpeechSynthesis resilience
 // King PC Colonia - Neutrón Voice Engine
 
 let activeAudioCtx: AudioContext | null = null;
@@ -10,6 +10,39 @@ declare global {
   interface Window {
     __activeUtterance?: SpeechSynthesisUtterance | null;
   }
+}
+
+// Mobile & Browser Audio Priming on Touch / Click
+export function primeAudioOnMobile() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass) {
+      if (!activeAudioCtx || activeAudioCtx.state === "closed") {
+        activeAudioCtx = new AudioContextClass();
+      }
+      if (activeAudioCtx.state === "suspended") {
+        activeAudioCtx.resume();
+      }
+      // Play brief inaudible sound to satisfy mobile autoplay policy
+      const osc = activeAudioCtx.createOscillator();
+      const gain = activeAudioCtx.createGain();
+      gain.gain.value = 0.0001;
+      osc.connect(gain);
+      gain.connect(activeAudioCtx.destination);
+      osc.start();
+      osc.stop(activeAudioCtx.currentTime + 0.02);
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.resume();
+      const dummy = new SpeechSynthesisUtterance(" ");
+      dummy.volume = 0.01;
+      dummy.rate = 10;
+      window.speechSynthesis.speak(dummy);
+    }
+  } catch (e) {}
 }
 
 // Unlock audio on user interaction
@@ -92,7 +125,7 @@ export async function playPcmAudioBase64(base64Pcm: string, sampleRate = 24000):
   }
 }
 
-// Get voices with asynchronous promise support for Chrome/Edge on Windows
+// Get voices with asynchronous promise support for Chrome/Edge on Windows & Mobile Android
 export function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -184,7 +217,7 @@ export async function getBestSpanishVoice(preferredName?: string): Promise<{ voi
   return { voice: defaultVoice || null, lang: defaultVoice?.lang || "es-ES" };
 }
 
-// Web Speech API execution with Chrome-bug resilience & resume loop
+// Web Speech API execution with Chrome & Android resilience & resume loop
 export async function speakWebSpeech(text: string, preferredVoiceName?: string, voiceRate = 1.0): Promise<void> {
   if (!text || typeof window === "undefined" || !("speechSynthesis" in window)) {
     return;
@@ -202,7 +235,7 @@ export async function speakWebSpeech(text: string, preferredVoiceName?: string, 
   stopCurrentAudio();
   unlockAudio();
 
-  // Give Chrome a short 50ms pause after cancel to prevent dropping utterance
+  // Give browser a short 50ms pause after cancel to prevent dropping utterance
   await new Promise((r) => setTimeout(r, 50));
 
   const { voice, lang } = await getBestSpanishVoice(preferredVoiceName);
@@ -232,11 +265,11 @@ export async function speakWebSpeech(text: string, preferredVoiceName?: string, 
 
       utter.onend = cleanup;
       utter.onerror = (e) => {
-        console.warn("SpeechSynthesis utterance error:", e);
+        console.warn("SpeechSynthesis utterance notice:", e);
         cleanup();
       };
 
-      // Chrome keep-alive: prevent long texts from freezing
+      // Keep-alive: prevent long texts from freezing
       keepAliveInterval = setInterval(() => {
         if (window.speechSynthesis && window.speechSynthesis.speaking) {
           window.speechSynthesis.pause();
@@ -251,7 +284,7 @@ export async function speakWebSpeech(text: string, preferredVoiceName?: string, 
 
       window.speechSynthesis.speak(utter);
 
-      // Extra watchdog in case Chrome doesn't start speaking within 200ms
+      // Extra watchdog in case browser doesn't start speaking within 150ms
       setTimeout(() => {
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();

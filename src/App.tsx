@@ -32,7 +32,7 @@ import { ExecutiveTerminal } from "./components/ExecutiveTerminal";
 import { TicketEditorModal } from "./components/TicketEditorModal";
 import { KingPcLogo } from "./components/KingPcLogo";
 import { Ticket, Factura, Contacto, Cliente, InventarioItem, VoiceCommandResponse } from "./types";
-import { speakText, stopCurrentAudio, unlockAudio, getAllSpanishVoices } from "./utils/audio";
+import { speakText, stopCurrentAudio, unlockAudio, primeAudioOnMobile, getAllSpanishVoices } from "./utils/audio";
 import {
   generateDoubleThermalReceiptHtml,
   generateClientOnlyThermalReceiptHtml,
@@ -99,6 +99,9 @@ export default function App() {
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
+  // Workshop Desktop Remote Printer State
+  const [remotePrintNotice, setRemotePrintNotice] = useState<string | null>(null);
+
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
@@ -132,8 +135,46 @@ export default function App() {
       setIsInstalled(true);
     }
 
+    // Workshop Desktop Remote Print Listener
+    // Automatically executes print jobs sent from mobile devices
+    const printInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/print/pending");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.jobs && data.jobs.length > 0) {
+            for (const job of data.jobs) {
+              await fetch("/api/print/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: job.id }),
+              });
+
+              if (job.ticket) {
+                setActiveTicket(job.ticket);
+                setActiveTab("asistente");
+
+                const html =
+                  job.mode === "cliente"
+                    ? generateClientOnlyThermalReceiptHtml(job.ticket, true)
+                    : job.mode === "taller"
+                    ? generateWorkshopOnlyThermalReceiptHtml(job.ticket, true)
+                    : generateDoubleThermalReceiptHtml(job.ticket, true);
+
+                setRemotePrintNotice(`🖨️ Imprimiendo comprobante #${job.ticket.ticket_num} enviado desde tu Celular...`);
+                setTimeout(() => setRemotePrintNotice(null), 6000);
+
+                printHtmlViaIframe(html);
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }, 1800);
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      clearInterval(printInterval);
     };
   }, []);
 
@@ -346,6 +387,7 @@ export default function App() {
   };
 
   const toggleListen = async () => {
+    primeAudioOnMobile();
     if (conversationModeRef.current) {
       // Deactivate conversation mode
       handleCancelListening();
@@ -364,6 +406,7 @@ export default function App() {
 
       // Activate conversation mode
       conversationModeRef.current = true;
+      primeAudioOnMobile();
       unlockAudio();
       stopCurrentAudio();
       setTranscript("");
@@ -735,6 +778,14 @@ export default function App() {
           </div>
         </div>
       </nav>
+
+      {/* Workshop Remote Print Notification Toast */}
+      {remotePrintNotice && (
+        <div className="fixed top-20 right-4 sm:right-6 z-50 bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce border-2 border-yellow-200 backdrop-blur-md">
+          <Printer className="w-4 h-4 text-slate-950 shrink-0" />
+          <span>{remotePrintNotice}</span>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6">

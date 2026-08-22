@@ -737,6 +737,43 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
     return null;
   }
 
+  
+  // ================= WORKSHOP REMOTE PRINT QUEUE =================
+  app.post(["/api/print/job", "/neutron/api/print/job"], (req, res) => {
+    const { ticket, mode = "double", source = "mobile" } = req.body;
+    if (!ticket) return res.status(400).json({ success: false, error: "No ticket provided" });
+
+    const job: PrintJob = {
+      id: "PRN-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+      ticket,
+      mode,
+      source,
+      status: "pending",
+      createdAt: Date.now(),
+    };
+
+    printQueue.push(job);
+    if (printQueue.length > 50) printQueue.shift();
+
+    console.log(`[Workshop Print Queue] Added print job ${job.id} for ticket ${job.ticket.ticket_num} from ${source}`);
+    res.json({ success: true, job });
+  });
+
+  app.get(["/api/print/pending", "/neutron/api/print/pending"], (req, res) => {
+    const pending = printQueue.filter((j) => j.status === "pending");
+    res.json({ success: true, jobs: pending });
+  });
+
+  app.post(["/api/print/complete", "/neutron/api/print/complete"], (req, res) => {
+    const { id } = req.body;
+    const job = printQueue.find((j) => j.id === id);
+    if (job) {
+      job.status = "printed";
+      console.log(`[Workshop Print Queue] Job ${id} marked as PRINTED by desktop terminal`);
+    }
+    res.json({ success: true });
+  });
+
   // --- AI COMMAND PARSER & NEUTRÓN ORCHESTRATOR ---
   app.post(["/api/command", "/neutron/api/command", "/api/neutron/voice-command"], async (req, res) => {
     try {
@@ -783,6 +820,19 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
         let printMode: "double" | "cliente" | "taller" = "double";
         if (norm.includes("cliente")) printMode = "cliente";
         else if (norm.includes("taller") || norm.includes("laboratorio") || norm.includes("local")) printMode = "taller";
+
+        if (targetTicket) {
+          const job: PrintJob = {
+            id: "PRN-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+            ticket: targetTicket,
+            mode: printMode,
+            source: "voice-mobile",
+            status: "pending",
+            createdAt: Date.now(),
+          };
+          printQueue.push(job);
+          if (printQueue.length > 50) printQueue.shift();
+        }
 
         return res.json({
           success: true,

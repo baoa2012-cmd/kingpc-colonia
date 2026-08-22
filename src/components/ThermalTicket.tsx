@@ -44,6 +44,28 @@ export const ThermalTicket: React.FC<ThermalTicketProps> = ({
   const [printStatus, setPrintStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [remotePrintStatus, setRemotePrintStatus] = useState<string | null>(null);
+
+  const handlePrintOnWorkshopDesktop = async () => {
+    setRemotePrintStatus("Enviando...");
+    try {
+      const res = await fetch("/api/print/job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket, mode: printMode, source: "mobile-button" }),
+      });
+      if (res.ok) {
+        setRemotePrintStatus("¡Enviado a tu PC!");
+        setTimeout(() => setRemotePrintStatus(null), 4000);
+      } else {
+        setRemotePrintStatus("Error al enviar");
+        setTimeout(() => setRemotePrintStatus(null), 3000);
+      }
+    } catch (e) {
+      setRemotePrintStatus("Error de red");
+      setTimeout(() => setRemotePrintStatus(null), 3000);
+    }
+  };
 
   const handleCreateInvoiceFromTicket = async () => {
     setIsGeneratingInvoice(true);
@@ -192,6 +214,15 @@ export const ThermalTicket: React.FC<ThermalTicketProps> = ({
             >
               <Smartphone className="w-3.5 h-3.5" />
               <span>WhatsApp</span>
+            </button>
+            <button
+              id="btn-print-remote-desktop"
+              onClick={handlePrintOnWorkshopDesktop}
+              className="px-3 py-1.5 text-xs font-black rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 flex items-center gap-1.5 transition shadow-sm cursor-pointer active:scale-95"
+              title="Manda a imprimir este ticket inmediatamente a la impresora térmica conectada a la PC de tu taller"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-950" />
+              <span>{remotePrintStatus || "🖨️ Imprimir en PC Taller"}</span>
             </button>
           </div>
         </div>
