@@ -100,6 +100,18 @@ interface DBStore {
   ticketEnFoco: any | null;
 }
 
+
+interface PrintJob {
+  id: string;
+  ticket: any;
+  mode: "double" | "cliente" | "taller";
+  source: string;
+  status: "pending" | "printed";
+  createdAt: number;
+}
+
+const printQueue: PrintJob[] = [];
+
 const store: DBStore = {
   usuarioActual: "señor",
   ticketEnFoco: null,
