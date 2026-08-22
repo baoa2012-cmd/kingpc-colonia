@@ -849,7 +849,7 @@ function findAndDeductInventory(itemQuery: string, qty: number = 1) {
           return res.json({
             success: true,
             intent: "actualizar_ticket",
-            speak: `Entendido señor, he actualizado el motivo de la reparación del comprobante ${store.ticketEnFoco.ticket_num} a: "${store.ticketEnFoco.falla}".`,
+            speak: "Entendido, señor.",
             ticket: store.ticketEnFoco,
             tickets: store.reparaciones,
             memoria: store.memoria,
@@ -949,8 +949,12 @@ ${store.ticketEnFoco ? JSON.stringify(store.ticketEnFoco) : "Ninguno"}
 HISTORIAL DE SOLICITUDES RECIENTES:
 ${store.memoria.slice(0, 5).join("\n")}
 
+REGLA DE RESPUESTA HABLADA ("speak") - CRÍTICA Y OBLIGATORIA:
+- Para cualquier acción de "crear_ticket", "actualizar_ticket" o "buscar_ticket", el campo "speak" DEBE SER ÚNICAMENTE Y EXACTAMENTE: "Entendido, señor."
+- NUNCA leas ni narres los datos del ticket (no digas "He creado un ticket a nombre de...", ni leas el teléfono, presupuesto o código). Solo di: "Entendido, señor."
+
 INSTRUCCIONES CLAVE:
-1. Si el señor pide CREAR o INGRESAR un ticket ("crear ticket", "trajo un equipo", "ingresar orden", etc.): genera "action": "crear_ticket".
+1. Si el señor pide CREAR pide CREAR o INGRESAR un ticket ("crear ticket", "trajo un equipo", "ingresar orden", etc.): genera "action": "crear_ticket".
 2. Si el señor pide EDITAR, CORREGIR o MODIFICAR cualquier dato del ticket ("me equivoqué con el nombre", "cámbialo a nombre de...", "el cliente se llama...", "el motivo es...", "el precio es..."): genera "action": "actualizar_ticket". Mantén los datos existentes del ticket activo que no hayan cambiado y actualiza el campo nuevo.
 3. Si el señor pide EMITIR FACTURA o VENDER un artículo: genera "action": "emitir_factura".
 4. Responde en JSON estricto:
@@ -1131,7 +1135,7 @@ INSTRUCCIONES CLAVE:
                 return res.json({
                   success: true,
                   intent: "actualizar_ticket",
-                  speak: parsed.speak || `Entendido señor, he actualizado la orden ${targetTicket.ticket_num} a nombre de ${targetTicket.cliente_nombre}.`,
+                  speak: "Entendido, señor.",
                   ticket: targetTicket,
                   tickets: store.reparaciones,
                   clientes: store.clientes,
@@ -1204,7 +1208,7 @@ INSTRUCCIONES CLAVE:
               return res.json({
                 success: true,
                 intent: "crear_ticket",
-                speak: parsed.speak || `Excelente ${store.usuarioActual}. He generado la orden ${ticket_num} para ${cliNombre} por su ${disp}. Queda lista para imprimir en doble copia.`,
+                speak: "Entendido, señor.",
                 ticket: nuevoTicket,
                 clientes: store.clientes,
               });
@@ -1395,7 +1399,7 @@ INSTRUCCIONES CLAVE:
           });
         }
 
-        const spk = `Excelente ${store.usuarioActual}. Comprobante ${ticket_num} generado a nombre de ${datos.cliente} por ${datos.dispositivo}. Tienes listas las opciones para imprimir ambos tickets o por separado.`;
+        const spk = "Entendido, señor.";
         return res.json({
           success: true,
           intent: "crear_ticket",
