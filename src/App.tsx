@@ -95,7 +95,7 @@ export default function App() {
 
   // Initial Data Fetch & Voice loader
   useEffect(() => {
-    fetchInitialData();
+    fetchInitialData(true);
     setupSpeechRecognition();
     getAllSpanishVoices().then((v) => {
       if (v && v.length > 0) setSystemVoices(v);
@@ -109,7 +109,7 @@ export default function App() {
     }
   }, []);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (isInitialMount = false) => {
     try {
       const [resTickets, resFacturas, resClientes, resInventario, resContacts] = await Promise.all([
         fetch("/api/tickets"),
@@ -122,8 +122,8 @@ export default function App() {
       if (resTickets.ok) {
         const d = await resTickets.json();
         setTickets(d.tickets || []);
-        if (d.tickets?.length > 0 && !activeTicket) {
-          setActiveTicket(d.tickets[0]);
+        if (isInitialMount && d.tickets?.length > 0) {
+          setActiveTicket((curr) => curr || d.tickets[0]);
         }
       }
 
@@ -140,8 +140,8 @@ export default function App() {
       if (resFacturas.ok) {
         const d = await resFacturas.json();
         setFacturas(d.facturas || []);
-        if (d.facturas?.length > 0 && !activeFactura) {
-          setActiveFactura(d.facturas[0]);
+        if (isInitialMount && d.facturas?.length > 0) {
+          setActiveFactura((curr) => curr || d.facturas[0]);
         }
       }
 
